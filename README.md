@@ -1,4 +1,4 @@
-# peribat
+# peribat (WIP)
 
 A tiny Windows tray app that shows the battery level of your wireless
 peripherals. The tray icon displays the **lowest** battery among all detected
