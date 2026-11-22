@@ -1,0 +1,14 @@
+[project]
+name = "peribat"
+version = "0.2.0"
+description = "Battery levels of wireless peripherals, next to the Windows system tray"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = ["pystray>=0.19", "Pillow>=10.0", "hidapi>=0.14"]
+
+[project.scripts]
+peribat = "peribat.app:main"
+
+[tool.setuptools]
+packages = ["peribat", "peribat.sources", "peribat.ui"]

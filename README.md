@@ -1,73 +1,91 @@
-# peribat (WIP)
+# peribat
 
-A tiny Windows tray app that shows the battery level of your wireless
-peripherals. The tray icon displays the **lowest** battery among all detected
-devices, colour-coded green / orange / red. Right-click for the full device
-list.
+Battery levels of your wireless mouse, keyboard, headset and controller, right
+next to the Windows system tray. Click the widget to change colours, size,
+position and which devices are shown.
 
-Supported sources:
+- Icon per device type (mouse, keyboard, headset, controller), colour by battery level
+- Lowest battery only, or every device
+- Low battery notification, charging indicator
+- Attaches to the taskbar, so it stays visible with the Start menu open and
+  follows an auto-hiding taskbar
+- Starts with Windows (set up on first run, switchable), no background services,
+  no admin rights, nothing leaves your computer
 
-- **Bluetooth** devices that report battery to Windows
-- **Logitech** devices over a Lightspeed / Unifying / Bolt dongle, or wired
-  (HID++ 2.0), e.g. PRO X Superlight
+## Supported devices
 
-## Features
+| Source | Devices | How |
+| --- | --- | --- |
+| Logitech | Mice, keyboards and headsets on a Lightspeed, Unifying or Bolt receiver, or wired | HID++ 2.0 |
+| Razer | Wireless mice and keyboards, with dongle or cable | Razer feature reports |
+| SteelSeries | Arctis 7, Arctis Pro, Arctis Nova 7 / 7X | vendor HID report |
+| Corsair | Void family headsets | vendor HID report |
+| Xbox | Xbox compatible controllers (four steps: 10 / 33 / 66 / 100 %) | XInput |
+| Bluetooth | Any paired device that reports its battery to Windows | Windows device property |
 
-- Lowest battery percentage right in the tray icon
-- Per-device list in the right-click menu
-- Small always-visible widget next to the system tray with a device icon (mouse, keyboard, headset, ...)
-- Click the widget (or the tray icon) to open the settings: colors, text size, position, which devices to show, one or all devices, notifications
-- Sets itself up to start with Windows on first run (toggle in the tray menu)
-- Charging indicator and a configurable low-battery notification (once per device)
-- "Start with Windows" toggle
-- Refreshes every 60 seconds (configurable), no background services, no admin rights
+Logitech and Bluetooth have been tried on real hardware. The Razer, SteelSeries
+and Corsair support follows the public protocol documentation (OpenRazer and
+HeadsetControl) and is covered by unit tests, but has not been verified against
+every device. If a device is missing, run `python -m peribat --diag` and open an
+issue with the output.
+
+Not supported: devices that keep their battery level to themselves, such as
+most generic 2.4 GHz keyboards and AirPods on Windows.
 
 ## Install
 
 ```powershell
 git clone https://github.com/rannoq/peribat.git
 cd peribat
-pip install -r requirements.txt
-pythonw peribat.py
+py -3.13 -m pip install -r requirements.txt
+py -3.13 peribat.pyw
 ```
 
-Requires Windows 10/11 and Python 3.9+.
+Windows 10 or 11 and Python 3.9 or newer. Keep the folder where it is; the
+autostart entry points to it (it is repaired automatically if you move it and
+start peribat once from the new place).
+
+## Usage
+
+Everything is in the settings window: click the widget, or double-click the tray
+icon. The settings are saved to `%APPDATA%\peribat\settings.json`, the log to
+`%LOCALAPPDATA%\peribat\peribat.log`.
+
+```powershell
+py -3.13 -m peribat --diag     # what Windows shows and what each source reads
+py -3.13 -m peribat --debug    # verbose log
+```
 
 ## How it works
 
-- **Bluetooth:** Windows stores the battery level of paired devices as a
-  device property. peribat reads it through PowerShell
-  (`Get-PnpDeviceProperty`).
-- **Logitech:** peribat opens the receiver's vendor HID interface with
-  `hidapi` and asks each paired device for its battery over HID++ 2.0
-  (features 0x1004 / 0x1000 / 0x1001). Sleeping devices don't answer; they
-  show up again once you move the mouse.
+```
+sources/*  --scan-->  Scanner  -->  Tracker  -->  App  -->  tray icon
+ (parallel,           (merges)      (keeps last      |-->  widget (taskbar child window)
+  cached if slow)                    good value)     '-->  settings window
+```
 
-Everything runs locally, nothing is sent over the network.
-
-## Limitations
-
-- Windows 11 has no official API for taskbar items, so the widget is a small
-  window attached to the taskbar next to the tray area (switchable in the
-  settings). Only horizontal taskbars are supported.
-- Keep the folder where it is: the autostart entry points to `peribat.py`.
-  If you move it, toggle "Start with Windows" off and on again.
-- Other dongle brands (Razer, Corsair, SteelSeries, generic 2.4 GHz
-  keyboards) are not supported yet; each vendor uses its own protocol.
-- Logitech G HUB or Logitech Options may compete for replies on the receiver;
-  if a level is missing, wait for the next refresh.
-- Voltage-only Logitech devices use an approximate voltage-to-percent curve.
+* Each source reads its devices and returns `Reading`s.
+* Wireless devices sleep and then do not answer. The `Tracker` keeps the last
+  reading for 30 minutes and only accepts a sudden rise in level once a second
+  scan confirms it, so the display does not flicker or jump.
+* The widget is drawn as one anti-aliased image and shown in a window that is a
+  child of the taskbar, so it moves and hides with it.
 
 ## Development
 
 ```powershell
-python tests/test_logitech.py   # protocol test against a fake device, no hardware
+py -m unittest discover -s tests -t .
 ```
 
-## Ideas / TODO
+The tests need only Pillow and run on any system. Adding a source means adding a
+module to `peribat/sources/` with `KEY`, `LABEL` and `scan()`, and listing it in
+`sources/__init__.py`.
 
-- More vendors as separate modules in `sources/`
-- Packaged .exe via PyInstaller
+## Protocol references
+
+[HID++ 2.0](https://github.com/pwr-Solaar/Solaar/blob/master/docs/hidpp-protocol.md),
+[OpenRazer](https://github.com/openrazer/openrazer),
+[HeadsetControl](https://github.com/Sapd/HeadsetControl).
 
 ## License
 
